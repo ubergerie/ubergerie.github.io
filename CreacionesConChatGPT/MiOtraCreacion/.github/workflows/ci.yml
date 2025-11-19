@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+          MYSQL_DATABASE: miotra_db
+          MYSQL_USER: miotra_user
+          MYSQL_PASSWORD: miotra_pass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: miotra_user
+      DB_PASS: miotra_pass
+      DB_NAME: miotra_db
+      API_KEY: ''
+      PORT: 3001
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Wait for MySQL
+      run: |
+        for i in {1..30}; do
+          mysqladmin ping -h"127.0.0.1" -P3306 -u"miotra_user" -p"miotra_pass" &>/dev/null && break
+          echo "Waiting for mysql... ($i)"
+          sleep 2
+        done
+
+    - name: Install dependencies
+      working-directory: ./backend
+      run: npm ci
+
+    - name: Run tests
+      working-directory: ./backend
+      run: npm test -- --testTimeout=40000
